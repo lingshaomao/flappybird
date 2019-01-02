@@ -1,0 +1,25 @@
+{
+  "apps": [
+    {
+      "name": "reward",
+      "script": "./reward/reward.js",
+      "env": {
+        "NODE_ENV": "localhost",
+      },
+    },
+    {
+      "name": "server",
+      "script": "./server.js",
+      "env": {
+        "NODE_ENV": "localhost",
+      },
+    },
+    {
+      "name": "websocket",
+      "script": "./ws.js",
+      "env": {
+        "NODE_ENV": "localhost",
+      },
+    }
+  ]
+}
