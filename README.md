@@ -84,3 +84,9 @@
 2. Add trained sample market, players can exchange samples.
 3. Add ‘Pause’ function so player can take a rest.
 4. Add ‘Revive’ function so player can continue playing from where he hit the pillar.
+
+## Contract address
+1. Contract owner address : TPkMNeTY4DnzFd9cW4rVuWSgPEFtC8GnaS
+2. Bog0 team Address address : TSLRNja356NUnMKVcfBeqR16exaBhZQXJq
+3. Bog token Contract address : TBopmnF7nMfShsHEZN6HDwuC4DfEbyuira
+4. Flappybird contract address : TA8Bf8DpwuqLsJjL3kjjkC1Ceq2ntJyaDo
