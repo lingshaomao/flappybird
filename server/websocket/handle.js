@@ -1,15 +1,11 @@
-/* global wss:false, ObjectId: false */
-
-const NodeRSA = require("node-rsa");
+/* global wss:false, ObjectId: false, sendToServer */
 const logger = require("../lib/logger");
 const contractTronHelper = require("../lib/tronHelper").contractTronHelper;
 const tokenTronHelper = require("../lib/tronHelper").tokenTronHelper;
 const jwt = require("../lib/jwt");
-const birdsCache = require("./cache").birds;
-const leaderboardCache = require("./cache").leaderboard;
-
-const updateLeaderboard = require("./cache").updateLeaderboard;
 const gameLib = require("../lib/game");
+const birdsCache = require("./cache").birds;
+let leaderboardCache = require("./cache").leaderboard;
 
 const Users = require("../schema/users").model();
 const Statistics = require("../schema/statistics.js").model();
@@ -21,25 +17,13 @@ const Birds = require("../schema/birds").model();
 const NOLOGIN = ["login", "checktoken", "price", "buy", "bought", "getleaderboards", "gameinfo"];
 
 const handleReq = async (socket, message) => {
-    //encrypt username on brown with public key and decrypt username on server with private key
     const privateKey = socket.privateKey;
     if (!privateKey) {
         return;
     }
     let json, act;
     try {
-        const myKey = new NodeRSA(privateKey);
-        myKey.setOptions({
-            encryptionScheme: "pkcs1"
-        });
-        // const decrypted = myKey.decrypt(message, "utf8");
-        const decrypted = message;
-        try {
-            json = JSON.parse(decrypted);
-        } catch (err) {
-            logger.error(err);
-            return;
-        }
+        json = JSON.parse(message);
         act = json.act;
     } catch (err) {
         logger.error(err)
@@ -105,7 +89,7 @@ const handleReq = async (socket, message) => {
                                 }),
                                 r: user.robots,
                                 h: user.humans,
-                                b: +user.bogs.toString()
+                                b: parseFloat(+user.bogs.toString() / 10000)
                             }
                         });
                         wss.socketsMap.set(username, socket);
@@ -141,7 +125,7 @@ const handleReq = async (socket, message) => {
                         }),
                         r: user.robots,
                         h: user.humans,
-                        b: +user.bogs.toString()
+                        b: parseFloat(+user.bogs.toString() / 10000)
                     }
                 });
                 wss.socketsMap.set(username, socket);
@@ -179,7 +163,7 @@ const handleReq = async (socket, message) => {
                         }),
                         r: user.robots,
                         h: user.humans,
-                        b: +user.bogs.toString()
+                        b: parseFloat(+user.bogs.toString() / 10000)
                     }
                 });
                 wss.socketsMap.set(username, socket);
@@ -262,195 +246,114 @@ const handleReq = async (socket, message) => {
                         code: 40503
                     });
                 }
-                if (0 && process.env.NODE_ENV !== "production") {
-                    setTimeout(async () => {
-                        const username = json.u || socket.username;
-                        let robot_amount = 20;
-                        let robot_price = 1;
-                        let human_amount = 10;
-                        let human_price = 10;
-                        let coin_amount = robot_amount * robot_price + human_amount * human_price;
-
-                        const update = await Buys.findByIdAndUpdate(id, {
-                            robot_amount,
-                            robot_price,
-                            human_amount,
-                            human_price,
-                            coin_amount,
-                            confirmed: true
-                        }, {
-                                new: true,
-                                select: "confirmed"
-                            }).lean();
-                        if (!update.confirmed) {
-                            return socket.send("reply", {
-                                act,
-                                code: 50002
-                            });
-                        }
-
-                        const robotBirds = [];
-                        const humanBirds = [];
-
-                        for (let i = 0; i < robot_amount; i++) {
-                            robotBirds.push({
-                                username,
-                                bird_type: 0,
-                                buy_id: id
-                            })
-                        }
-                        for (let j = 0; j < human_amount; j++) {
-                            humanBirds.push({
-                                username,
-                                bird_type: 1,
-                                buy_id: id
-                            })
-                        }
-                        if (robotBirds.length > 0) {
-                            await Birds.create(robotBirds);
-                        }
-
-                        if (humanBirds.length > 0) {
-                            await Birds.create(humanBirds);
-                        }
-                        const robots = await Birds.find({
-                            username,
-                            status: 0,
-                            bird_type: 0
-                        }).countDocuments();
-                        const humans = await Birds.find({
-                            username,
-                            status: 0,
-                            bird_type: 1
-                        }).countDocuments();
-
-                        newUser = await Users.findOneAndUpdate({
-                            username
-                        }, {
-                                robots,
-                                humans
-                            }, {
-                                new: true
-                            }).lean();
+                let retry = 0;
+                const intervalId = setInterval(async () => {
+                    retry++;
+                    if (retry > 20) {
+                        logger.error("bought retry > 500, id:" + id)
+                        clearInterval(intervalId);
                         socket.send("reply", {
                             act,
-                            code: 0,
-                            data: {
-                                r: newUser.robots,
-                                h: newUser.humans
-                            }
+                            code: 40504
                         });
-                    }, 5000)
+                        return;
+                    }
+                    const getContractInstance = await gameLib.getContractInstance();
 
-                } else {
-                    let retry = 0;
-                    const intervalId = setInterval(async () => {
-                        retry++;
-                        if (retry > 10) {
-                            logger.error("bought retry > 10, id:" + id)
+                    getContractInstance.getBuy(id).call().then(async (result) => {
+                        logger.info("bought", result)
+                        if (result.hp.toNumber()) {
                             clearInterval(intervalId);
-                            socket.send("reply", {
-                                act,
-                                code: 40504
-                            });
-                            return;
-                        }
-                        const getContractInstance = await gameLib.getContractInstance();
+                            const username = contractTronHelper.tronWeb.address.fromHex(result.buyer);
+                            let robot_amount = parseInt(result.robotAmount.toNumber());
+                            let robot_price = result.rp.toNumber();
+                            let human_amount = parseInt(result.humanAmount.toNumber());
+                            let human_price = result.hp.toNumber();
+                            let coin_amount = robot_amount * robot_price + human_amount * human_price;
 
-                        getContractInstance.getBuy(id).call().then(async (result) => {
-                            if (result.hp.toNumber()) {
-
-                                clearInterval(intervalId);
-
-
-                                const username = contractTronHelper.tronWeb.address.fromHex(result.buyer);
-                                let robot_amount = parseInt(result.robotAmount.toNumber());
-                                let robot_price = result.rp.toNumber();
-                                let human_amount = parseInt(result.humanAmount.toNumber());
-                                let human_price = result.hp.toNumber();
-                                let coin_amount = robot_amount * robot_price + human_amount * human_price;
-
-                                const update = await Buys.findByIdAndUpdate(id, {
-                                    robot_amount,
-                                    robot_price,
-                                    human_amount,
-                                    human_price,
-                                    coin_amount,
-                                    confirmed: true
-                                }, {
-                                        new: true,
-                                        select: "confirmed"
-                                    }).lean();
-                                if (!update.confirmed) {
-                                    return socket.send("reply", {
-                                        act,
-                                        code: 50002
-                                    });
-                                }
-
-                                const robotBirds = [];
-                                const humanBirds = [];
-
-                                for (let i = 0; i < robot_amount; i++) {
-                                    robotBirds.push({
-                                        username,
-                                        bird_type: 0,
-                                        buy_id: id
-                                    })
-                                }
-                                for (let j = 0; j < human_amount; j++) {
-                                    humanBirds.push({
-                                        username,
-                                        bird_type: 1,
-                                        buy_id: id
-                                    })
-                                }
-                                if (robotBirds.length > 0) {
-                                    await Birds.create(robotBirds);
-                                }
-
-                                if (humanBirds.length > 0) {
-                                    await Birds.create(humanBirds);
-                                }
-                                const robots = await Birds.find({
-                                    username,
-                                    status: 0,
-                                    bird_type: 0
-                                }).countDocuments();
-                                const humans = await Birds.find({
-                                    username,
-                                    status: 0,
-                                    bird_type: 1
-                                }).countDocuments();
-
-                                newUser = await Users.findOneAndUpdate({
-                                    username
-                                }, {
-                                        robots,
-                                        humans
-                                    }, {
-                                        new: true
-                                    }).lean();
-                                socket.send("reply", {
+                            const update = await Buys.findByIdAndUpdate(id, {
+                                robot_amount,
+                                robot_price,
+                                human_amount,
+                                human_price,
+                                coin_amount,
+                                confirmed: true
+                            }, {
+                                    new: true,
+                                    select: "confirmed"
+                                }).lean();
+                            if (!update.confirmed) {
+                                return socket.send("reply", {
                                     act,
-                                    code: 0,
-                                    data: {
-                                        r: newUser.robots,
-                                        h: newUser.humans
-                                    }
+                                    code: 50002
                                 });
                             }
-                        }).catch(err => {
-                            logger.error(err);
-                        });
-                    }, 500)
-                }
+
+                            const robotBirds = [];
+                            const humanBirds = [];
+
+                            for (let i = 0; i < robot_amount; i++) {
+                                robotBirds.push({
+                                    username,
+                                    bird_type: 0,
+                                    buy_id: id
+                                })
+                            }
+                            for (let j = 0; j < human_amount; j++) {
+                                humanBirds.push({
+                                    username,
+                                    bird_type: 1,
+                                    buy_id: id
+                                })
+                            }
+                            if (robotBirds.length > 0) {
+                                await Birds.create(robotBirds);
+                            }
+
+                            if (humanBirds.length > 0) {
+                                await Birds.create(humanBirds);
+                            }
+                            const robots = await Birds.find({
+                                username,
+                                status: 0,
+                                bird_type: 0
+                            }).countDocuments();
+                            const humans = await Birds.find({
+                                username,
+                                status: 0,
+                                bird_type: 1
+                            }).countDocuments();
+
+                            newUser = await Users.findOneAndUpdate({
+                                username
+                            }, {
+                                    robots,
+                                    humans
+                                }, {
+                                    new: true
+                                }).lean();
+                            socket.send("reply", {
+                                act,
+                                code: 0,
+                                data: {
+                                    r: newUser.robots,
+                                    h: newUser.humans,
+                                    ri: robot_amount,
+                                    hi: human_amount,
+                                }
+                            });
+                        }
+                    }).catch(err => {
+                        logger.error(err);
+                    });
+                }, 500)
                 break;
 
             }
 
         case "startfly":
             {
+                logger.info("startfly:", JSON.stringify(json));
                 const username = json.u;
                 const type = +json.t;
                 const generation = json.g;
@@ -488,7 +391,7 @@ const handleReq = async (socket, message) => {
                         bird_type: type,
                         generation,
                         round: gameInfo.round_id,
-                        pillar: 0,
+                        pillars: 0,
                         score: 0,
                         flytime: 0
                     });
@@ -496,6 +399,21 @@ const handleReq = async (socket, message) => {
                 });
 
                 if (birds.length < amount) {
+
+                    const num = await Birds.find({
+                        username,
+                        status: 0,
+                        bird_type: type
+                    }).countDocuments();
+
+                    const update = {};
+                    if (type === 0) {
+                        update.robots = num;
+                    } else {
+                        update.humans = num;
+                    }
+                    await Users.findOneAndUpdate({ username }, update);
+
                     return socket.send("reply", {
                         act,
                         code: 40502,
@@ -519,6 +437,7 @@ const handleReq = async (socket, message) => {
                     status: 0,
                     bird_type: 0
                 }).countDocuments();
+
                 const humans = await Birds.find({
                     username,
                     status: 0,
@@ -546,13 +465,11 @@ const handleReq = async (socket, message) => {
 
         case "uploadscore":
             {
-                logger.info("uploadscore:", JSON.stringify(json));
                 const score = parseInt(json.sc) || 0;
-                const id = json.b;// id of bird
-                const flytime = parseInt(json.f);//flight time
-                const died = json.d; // if died
-                const pillar = parseInt(json.p) || 0;//amount of pillar
-                // const speed = json.sp;      //speed for fly
+                const id = json.b;
+                const flytime = parseInt(json.f);
+                const died = json.d;
+                const pillars = parseInt(json.p) || 0;
 
                 if (!id || !flytime) {
                     return socket.send("reply", {
@@ -561,13 +478,8 @@ const handleReq = async (socket, message) => {
                     })
                 }
 
-                if (score > flytime * 70) {
-                    return socket.send("reply", {
-                        act,
-                        code: 40502
-                    })
-                }
-                let birdCache = birdsCache.get(id)
+                let birdCache = birdsCache.get(id);
+
                 if (!birdCache) {
                     const bird = await Birds.findById(id).lean();
                     if (!bird && bird.status === 2) {
@@ -582,29 +494,28 @@ const handleReq = async (socket, message) => {
                     return socket.send("reply", { act, code: 40502 })
                 }
 
-                if (birdCache.bird_type === 1 && birdCache.pillar > birdCache.pillar) {
-                    tokenTronHelper.sendBogs(birdCache.username, parseInt(pillar - birdCache.pillar));
+                if (died) {
+                    birdCache.died_time = new Date();
+                    birdCache.status = 2;
+                    birdsCache.delete(id);
+                    if (pillars < 10000 * 50000) {
+                        tokenTronHelper.sendBogs(birdCache.username, parseInt(pillars) * 10000 * (birdCache.bird_type === 1 ? 1 : 0.1));
+                    }
                 }
 
-                if (died) {
-                    birdCache.end_time = new Date();
-                    birdsCache.delete(id);
-                    birdCache.status = 2;
-                }
+                birdCache.flytime = flytime;
+                birdCache.score = score;
+                birdCache.pillars = pillars;
 
                 await Birds.findByIdAndUpdate(id, birdCache);
 
-                birdCache.score = score;
-                birdCache.flytime = flytime;
-                birdCache.pillar = pillar;
-
-                updateLeaderboard(birdCache);
+                sendToServer(socket.id, { act, bird: birdCache });
 
                 socket.send("reply", {
                     act,
                     code: 0,
                     data: {
-                        b: birdCache.pillar
+                        b: birdCache.bird_type === 1 ? birdCache.pillars : (birdCache.pillars * 0.1)
                     }
                 })
                 break;
@@ -613,7 +524,6 @@ const handleReq = async (socket, message) => {
         case "getleaderboards":
             {
                 logger.info("getleaderboards:", JSON.stringify(json));
-                console.time("getleaderboards")
                 const p = parseInt(json.p) || 1;
 
                 const total = (await Rounds.find({}).select("round_id").sort({
@@ -633,7 +543,6 @@ const handleReq = async (socket, message) => {
                         t: total.round_id
                     }
                 });
-                console.timeEnd("getleaderboards")
                 break;
             }
 

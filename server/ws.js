@@ -5,7 +5,6 @@ const glob = require("glob");
 const libRule = 'startup/+(mongo).js';
 glob.sync(libRule).forEach((file) => {
     try {
-        console.log(file);
         require("./" + file);
     } catch (e) {
         console.error(e);
@@ -19,7 +18,7 @@ const Configurations = {
     brokers: config.ws.brokers,
     brokersPorts: config.ws.brokersPorts,
     restartWorkerOnFail: false,
-    pingInterval: 3000,
+    pingInterval: 3000
 }
 if (process.env.MASTER === "true") {
     Configurations.horizontalScaleOptions = {

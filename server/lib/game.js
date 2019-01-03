@@ -1,19 +1,22 @@
+const logger = require("../lib/logger");
+const Rounds = require("../schema/rounds.js").model();
+
 const Statistics = require('../schema/statistics.js').model();
-const Rounds = require('../schema/rounds.js').model();
 const contractTronHelper = require("../lib/tronHelper").contractTronHelper;
+
+const leaderboard = {
+    round_id: 1,
+    leaderboardsMap: new Map(),
+    leaderboardsArray: [],
+};
+
+
 const getInitConfig = async () => {
     return (await Statistics.findOne({}).lean() || {
-        init_jackpot: 1000,
-        trx_jackpot: 0,
-        eos_jackpot: 0,
-        consolation_percent: 0.1,
-        max_round_profit_percent: 0.0125,
-        max_one_profit_percent: 0.0075,
         referred_reward_percent: 0.002,
         reward_percent: 0.8,
         reward_sum: 0,
         referred_reward_sum: 0,
-        contract_address: "41b1c07e921926a2d241ac7cc287df34836759d3e2",
         bog_reward_percent: 0.49,
         team_reward_percent: 0.49,
         win_team_reward_percent: 0.2,
@@ -75,13 +78,56 @@ const getNextRoundId = async (startTime, endTime, nextTime) => {
 
 
 const getContractInstance = async () => {
-    const contract_address = (await Statistics.findOne({}).select("contract_address").lean()).contract_address
-    let contractInstance = await contractTronHelper.tronWeb.contract().at(contract_address);
+    let contractInstance = await contractTronHelper.tronWeb.contract().at("418e5eede1e6fe86b81b4bd98deec30e1d053e7bce");
     return contractInstance;
 }
+
+
+
+
+const updateLeaderboard = async (bird) => {
+    const key = bird.username + "#" + bird.bird_type;
+    if (bird.round !== leaderboard.round_id) {
+        const round = await Rounds.findOne({ round_id: bird.round }).lean();
+        if (!round) {
+            return;
+        }
+        leaderboard.round_id = round.round_id;
+        leaderboard.leaderboardsMap.clear();
+
+        round.leaderboard.forEach((user) => {
+            leaderboard.leaderboardsMap.set(user.username + "#" + user.bird_type, user);
+        });
+    }
+    if (!leaderboard.leaderboardsMap.has(key) || bird.score > leaderboard.leaderboardsMap.get(key).max_score) {
+        leaderboard.leaderboardsMap.set(key, {
+            username: bird.username,
+            max_score: bird.score,
+            bird_type: bird.bird_type
+        });
+        sortLeaderboard();
+    }
+}
+
+
+const sortLeaderboard = () => {
+    leaderboard.leaderboardsArray = [];
+    leaderboard.leaderboardsMap.forEach((value) => {
+        leaderboard.leaderboardsArray.push(value);
+    })
+    leaderboard.leaderboardsArray = leaderboard.leaderboardsArray.sort((a, b) => {
+        return b.max_score - a.max_score;
+    });
+    Rounds.findOneAndUpdate({ round_id: leaderboard.round_id }, { leaderboard: leaderboard.leaderboardsArray }, (err) => {
+        err && logger.error(err);
+    });
+    global.gameServer.broadcast("leaderboard", leaderboard);
+}
+
 
 module.exports = {
     getInitConfig,
     getNextRoundId,
-    getContractInstance
+    getContractInstance,
+    updateLeaderboard
 }

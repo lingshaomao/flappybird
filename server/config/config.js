@@ -28,7 +28,7 @@ const configs = {
 		contractAccount: "TGrLPyorCRygwt2cvv9GuHpbMbwnvcdykE"
 	}
 }
-const appCfg = configs[env];
+const appCfg = configs["localhost"];
 if (cluster.isWorker) {
 	appCfg.instanceId = os.hostname() + "_" + cluster.worker.id
 }

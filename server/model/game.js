@@ -39,6 +39,12 @@ class Game {
         this.event.emit("end", this.nextTime);
     }
 
+    req_uploadscore(req) {
+        const { bird } = req;
+        gameLib.updateLeaderboard(bird);
+
+    }
+
     reply(req, reply) {
         const wsInstanceId = req.from;
         reply.act = req.act;

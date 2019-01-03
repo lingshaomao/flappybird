@@ -26,16 +26,21 @@ global.gameServer = gameServer;
 
 event.on("end", (nextTime) => {
     setTimeout(() => {
+        global.gameServer.notice("reward", {
+            act: "end",
+            round_id: global.gameServer.id,
+            coin: "trx"
+        });
+
+
         const gameServer = new Game(event);
         gameServer.play(Date.now(), Date.now() + PLAYDURATION, Date.now() + PLAYDURATION + WAITDURATION);
         global.gameServer = gameServer;
+
+
     }, parseInt(nextTime) - Date.now());
 
-    global.gameServer.notice("reward", {
-        act: "end",
-        round_id: global.gameServer.id,
-        coin: "trx"
-    });
+
 });
 
 process.on('uncaughtException', (err) => {

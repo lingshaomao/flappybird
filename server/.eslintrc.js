@@ -9,6 +9,6 @@ module.exports = {
         "ecmaVersion": 8 
     },
     "rules": {
-        "no-console": "on",
+        "no-console": "error",
     }
 };

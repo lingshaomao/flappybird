@@ -5,42 +5,28 @@ const args = [{
         type: String,
         index: true,
     },
-    // game params
     population: {
         type: String,
     },
-    spanInterval:{
+    spanInterval: {
         type: String,
     },
     holeSize: {
         type: String,
     },
-    // generation data
-    generation: {
+    generation: {
         type: String,
     },
-    score: {
+    score: {
         type: Number,
         default: 0
     },
-    maxScore: {
+    maxScore: {
         type: Number,
         default: 0
     },
-    // train data
     genData: {
-        gen: [{
-            _id: false,
-            layers: [{
-                _id: false,
-                id: Number,
-                neurons: [{
-                    _id: false,
-                    value: mongoose.Types.Decimal128,
-                    weights: []
-                }]
-            }]
-        }]
+        type: String,
     }
 }, {
     timestamps: {

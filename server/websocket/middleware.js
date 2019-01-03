@@ -3,6 +3,14 @@ const handle = require("./handle");
 const game = require("../lib/game");
 const Rounds = require('../schema/rounds.js').model();
 
+const onPublish = (channel, data) => {
+    switch (channel) {
+        case "leaderboard": {
+            require("./cache").leaderboard = data;
+            break;
+        }
+    }
+};
 const connection = (socket, req) => {
 
     socket.on("disconnect", (code, reason) => {
@@ -17,20 +25,12 @@ const connection = (socket, req) => {
         handle.handleReq(socket, message);
     });
 
-
-    const key = new NodeRSA({ b: 1024 }, { encryptionScheme: 'pkcs1', environment: 'node' });
-    const publicKey = key.exportKey("public");
-    const privateKey = key.exportKey("private");
-    socket.privateKey = privateKey;
-
-
     game.getInitConfig().then(async (initConfig) => {
         const gameInfo = (await Rounds.find({}).sort({ _id: -1 }).limit(1).lean())[0];
         const init = {
             act: "init",
             code: 0,
             data: {
-                p: publicKey,
                 c: initConfig.contract_address,
                 s: socket.id,
                 g: Object.assign({ n: Date.now() }, {
@@ -45,13 +45,10 @@ const connection = (socket, req) => {
         socket.send("reply", init);
     })
 
-
 }
 
 
 module.exports = {
-    onMessageReceive,
-    onSubscribe,
     connection,
     onPublish
 };

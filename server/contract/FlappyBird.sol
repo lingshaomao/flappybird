@@ -83,28 +83,16 @@ contract FlappyBird {
             senderBytes20[n - 4] = senderBytes[n];
         }
 
-        bytes memory salt = new bytes(10);
-
         uint sidBytesLen = sidBytes.length;
 
-        for (uint m = 0; m < 20; m++) {
-            if (m % 2 == 0) {
-                salt[uint(m / 2)] = senderBytes20[m];
-            }
-        }
+        bytes memory array = new bytes(sidBytesLen + 20);
 
-        bytes memory array = new bytes(sidBytesLen + 30);
-
-        for (uint i = 0; i < 10; i++) {
-            array[i] = salt[i];
-        }
-
-        for (uint j = 10; j < 30; j++) {
-            array[j] = senderBytes20[j - 10];
+        for (uint j = 0; j < 20; j++) {
+            array[j] = senderBytes20[j];
         }
         
-        for (uint k =  30; k < sidBytesLen + 30; k++) {
-            array[k] = sidBytes[k - 30];
+        for (uint k =  20; k < sidBytesLen + 20; k++) {
+            array[k] = sidBytes[k - 20];
         }
         token = sha256(array);
     }

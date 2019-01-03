@@ -1,10 +1,6 @@
-
-const bUnitTest = 0;
-
-/**************************************************************/
 require("../startup/mongo");
 
-const eosHelper = require("../lib/eoshelper");
+//const eosHelper = require("../lib/eoshelper");
 const trxHelper = require("../lib/tronHelper").contractTronHelper;
 const logger = require("../lib/logger");
 const gameLib = require('../lib/game');
@@ -21,8 +17,7 @@ class RewardType {
 }
 
 class RewardController {
-    constructor(isEos, roundId, profitSum, rankList, winnerList, loserList) {
-        this.isEos = isEos;
+    constructor(roundId, profitSum, rankList, winnerList, loserList) {
         this.roundId = roundId;
         this.profitSum = profitSum;
         this.rankList = rankList;
@@ -36,17 +31,9 @@ class RewardController {
         this.referredRewardSum = 0.0;
     }
 
-    /************************************************************************************/
     run() {
-        logger.info("**********************Run reward schedule job**********************");
         this.doReward();
     }
-
-    cancel() {
-        logger.info("********************Cancel reward schedule job********************");
-    }
-
-    /************************************************************************************/
     async getConf() {
         this.conf = await gameLib.getInitConfig();
         if (!this.conf) {
@@ -103,11 +90,7 @@ class RewardController {
 
     fixRewardNum(func, rewardNum) {
         let oldNum = rewardNum;
-        if (this.isEos)
-            rewardNum = oldNum.toFixed(4);
-        else 
-            rewardNum = parseInt(oldNum);//oldNum.toFixed(0);
-
+        rewardNum = oldNum.toFixed(4);//parseInt(oldNum);
         if (!rewardNum || rewardNum <= 0) {
             logger.info(func, "after fixed,RewardNum=" + rewardNum + " is too small,no need reward", "oldNum=" + oldNum, "round=" + this.roundId);
             return null;
@@ -153,12 +136,13 @@ class RewardController {
 
     /*******************************************************************/
     async getBogHolder() {
-        let fucn = "[getBogHolder]";
+        let func = "[getBogHolder]";
         try {
             let users = await Users.find({ bogs: { $gt: 0 } }).select("username status bogs trx_address").lean();
             users.forEach(user => {
-                this.bogSum += user.bogs;
+                this.bogSum += parseInt(user.bogs.toString());
             });
+            logger.info(func, 'this.bogSum=' + this.bogSum);
             return users;
 
         } catch (e) {
@@ -180,8 +164,8 @@ class RewardController {
             }
             var bogProfit = this.profitSum * this.conf.bog_reward_percent;
             logger.info(func, "bogProfit=" + bogProfit);
-            if (!this.bogProfit || this.bogProfit <= 0) {
-                logger.err(func, "this.bogProfit:" + this.bogProfit, " invalid, nothing to reward");
+            if (!bogProfit || bogProfit <= 0) {
+                logger.err(func, "bogProfit:" + bogProfit, " invalid, nothing to reward");
                 return null;
             }
 
@@ -189,7 +173,7 @@ class RewardController {
 
             bogHolderList.forEach(val => {
                 var num = (val.bogs / this.bogSum) * bogProfit;
-                rewardNum = this.fixRewardNum(func, num);
+                var rewardNum = this.fixRewardNum(func, num);
                 if (!rewardNum) return null;
 
                 var rewardData = {
@@ -201,7 +185,7 @@ class RewardController {
                     trx_address: val.trx_address,
                 };
                 rewardList.push(rewardData);
-                logger.info(func, "username=" + val.username, "reward type=" + (this.isEos ? "EOS" : "TRX") + ",Num=" + rewardNum, "round=" + this.roundId);
+                logger.info(func, "username=" + val.username, "reward type=" + "TRX" + ",Num=" + rewardNum, "round=" + this.roundId);
             });
             return rewardList;
 
@@ -215,7 +199,7 @@ class RewardController {
     async doBogHolderReward() {
         var func = "[doBogHolderReward]";
         try {
-            var bogHolderList = this.getBogHolder();
+            var bogHolderList = await this.getBogHolder();
             if (!bogHolderList) {
                 logger.err(func, "getBogHolder failed, nothing to reward");
                 return -1;
@@ -245,11 +229,8 @@ class RewardController {
 
             var result;
             for (let reward of rewardList) {
-                if (bUnitTest) { reward.coin_num = 1.0; }
-                if (this.isEos)
-                    result = await eosHelper.transfer(reward.username, `${reward.coin_num} EOS`, "BOG holder reward");
-                else
-                    result = await trxHelper.transfer(reward.trx_address, reward.coin_num, "TRX");
+                result = await trxHelper.transfer(reward.trx_address, reward.coin_num * 1000000, "TRX");
+
                 logger.info(func, "transfer to user result:" + JSON.stringify(result), "round=" + this.roundId);
             }
             logger.info(func, "reward succ");
@@ -312,7 +293,7 @@ class RewardController {
                     trx_address: trxHelper.getHexAddress(this.rankList[i].username),
                 };
                 rewardList.push(rewardData);
-                logger.info(func, "username=" + this.rankList[i].username, "reward type=" + (this.isEos ? "EOS" : "TRX") + ",Num=" + rewardNum, "round=" + this.roundId);
+                logger.info(func, "username=" + this.rankList[i].username, "reward type=" + "TRX" + ",Num=" + rewardNum, "round=" + this.roundId);
             }
             return true;
 
@@ -346,7 +327,7 @@ class RewardController {
                     trx_address: trxHelper.getHexAddress(val.username),
                 };
                 rewardList.push(rewardData);
-                logger.info(func, "username=" + val.username, "reward type=" + (this.isEos ? "EOS" : "TRX") + ",Num=" + rewardNum, "round=" + this.roundId);
+                logger.info(func, "username=" + val.username, "reward type=" + "TRX" + ",Num=" + rewardNum, "round=" + this.roundId);
             });
             return rewardList;
 
@@ -380,7 +361,7 @@ class RewardController {
                     trx_address: trxHelper.getHexAddress(val.username),
                 };
                 rewardList.push(rewardData);
-                logger.info(func, "username=" + val.username, "reward type=" + (this.isEos ? "EOS" : "TRX") + ",Num=" + rewardNum, "round=" + this.roundId);
+                logger.info(func, "username=" + val.username, "reward type=" + "TRX" + ",Num=" + rewardNum, "round=" + this.roundId);
             });
             return rewardList;
 
@@ -427,11 +408,8 @@ class RewardController {
 
             var result;
             for (let reward of rewardList) {
-                if (bUnitTest) { reward.coin_num = 1.0; }
-                if (this.isEos)
-                    result = await eosHelper.transfer(reward.username, `${reward.coin_num} EOS`, "BOG holder reward");
-                else
-                    result = await trxHelper.transfer(reward.trx_address, reward.coin_num, "TRX");
+                result = await trxHelper.transfer(reward.trx_address, reward.coin_num * 1000000, "TRX");
+
                 logger.info(func, "transfer to user result:" + JSON.stringify(result), "round=" + this.roundId);
             }
             logger.info(func, "reward succ");
@@ -569,7 +547,7 @@ class RewardController {
 
             for (let reward of rewardList) {
                 if (bUnitTest) { reward.coin_num = 0.0001; }
-                let result = await eosHelper.transfer(reward.username, `${reward.coin_num} ${reward.coin_type}`, "bets referred reward");
+                //let result = await eosHelper.transfer(reward.username, `${reward.coin_num} ${reward.coin_type}`, "bets referred reward");
                 //let result = await eosHelper.transfer(reward.username, `${reward.coin_num} BOG`, "bets referred reward");
                 // let result = await eosHelper.transfer(reward.username, "0.0001 EOS", "bets referred reward");
                 logger.info(func, "transfer result:" + JSON.stringify(result));

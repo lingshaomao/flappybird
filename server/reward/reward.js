@@ -96,5 +96,5 @@ const handleReward = async (json) => {
     const loserList = round.leaderboard.filter((user) => {
         return user.bird_type !== winType;
     });
-    new RewardController(false, json.round_id, profitSum, round.leaderboard, winnerList, loserList).run();
+    new RewardController(json.round_id, profitSum, round.leaderboard, winnerList, loserList).run();
 }
