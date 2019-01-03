@@ -87,6 +87,6 @@
 
 ## Contract address
 1. Contract owner address : TPkMNeTY4DnzFd9cW4rVuWSgPEFtC8GnaS
-2. Bogo team Address address : TSLRNja356NUnMKVcfBeqR16exaBhZQXJq
-3. Bog token Contract address : TBopmnF7nMfShsHEZN6HDwuC4DfEbyuira
+2. Bogo team address : TSLRNja356NUnMKVcfBeqR16exaBhZQXJq
+3. Bog token contract address : TBopmnF7nMfShsHEZN6HDwuC4DfEbyuira
 4. Flappybird contract address : TA8Bf8DpwuqLsJjL3kjjkC1Ceq2ntJyaDo
