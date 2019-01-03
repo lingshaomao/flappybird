@@ -1,5 +1,7 @@
 # The Flappybird Doc
 
+## Mainnet link : https://flappybird.bogo.one/
+
 ## How to use Tron wallet
 * Sign in Tron wallet Chrome extension
 * If you haven’t installed, go to TronLink: https://goo.gl/Yb4NRU 
