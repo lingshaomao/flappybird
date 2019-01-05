@@ -44,8 +44,7 @@
 1. Token instruction：
     * The symbol of game token is BOG，max supply 1 billion, 0.7 billion are released by mining, 0.3 billion are hold by the team. The team part will be synchronously released with the mining progress.
 2. How to mine：
-    * When the game starts, the player will receive one BOG token when the bird pass a pillar.
-    * The robot bird training will NOT receive BOG token.
+    * When the game starts, the player will receive one BOG token when the bird pass a pillar;The robot bird player will receive 0.1 BOG token when it passes a pillar.
 
 ## Bonus Distribution Rule
 1. Team Definition：
